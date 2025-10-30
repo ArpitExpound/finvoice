@@ -20,6 +20,8 @@ import {
   Input,
   useToast,
   useColorModeValue,
+  Flex,
+  Badge,
 } from "@chakra-ui/react";
 
 import { MoonIcon, SunIcon, ViewIcon, DownloadIcon } from "@chakra-ui/icons";
@@ -116,7 +118,16 @@ const BillingDashboard = () => {
       });
       return;
     }
+
     const detailedDoc = await fetchDocumentDetails(selectedDoc.BillingDocument);
+    if (detailedDoc) {
+      setSelectedDoc(detailedDoc);
+      setIsModalOpen(true);
+    }
+  };
+
+  const handleRowDoubleClick = async (doc) => {
+    const detailedDoc = await fetchDocumentDetails(doc.BillingDocument);
     if (detailedDoc) {
       setSelectedDoc(detailedDoc);
       setIsModalOpen(true);
@@ -139,19 +150,6 @@ const BillingDashboard = () => {
             colorScheme="teal"
             aria-label="Toggle Theme"
           />
-          {/* View and Download buttons */}
-          <IconButton
-            icon={<ViewIcon />}
-            colorScheme="blue"
-            variant="outline"
-            onClick={handlePreview}
-          />
-          <IconButton
-            icon={<DownloadIcon />}
-            colorScheme="green"
-            variant="outline"
-            onClick={handlePreview}
-          />
         </HStack>
       </HStack>
 
@@ -162,8 +160,8 @@ const BillingDashboard = () => {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           fontSize="sm"
-          height="30px"
-          width="50%" // optional, adjust as needed
+          height="35px"
+          width="20%" // smaller width than before
         />
       </Box>
 
@@ -175,6 +173,40 @@ const BillingDashboard = () => {
           </Center>
         ) : (
           <>
+            <Flex align="center" gap={3} mb={2} px={1}>
+              {selectedDoc && (
+                <HStack mb={4}>
+                  <Badge colorScheme="blue" fontSize="md">
+                    Selected Billing Document:{" "}
+                    {String(
+                      selectedDoc?.BillingDocument?.billingDocumentID ||
+                        selectedDoc?.BillingDocument ||
+                        selectedDoc?.billingDocumentID ||
+                        "N/A"
+                    )}
+                  </Badge>
+                </HStack>
+              )}
+
+              {selectedDoc && (
+                <HStack spacing={2}>
+                  <IconButton
+                    icon={<ViewIcon />}
+                    colorScheme="blue"
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePreview}
+                  />
+                  <IconButton
+                    icon={<DownloadIcon />}
+                    colorScheme="green"
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePreview}
+                  />
+                </HStack>
+              )}
+            </Flex>
             <Table size="md" variant="simple">
               <Thead bg={tableHeaderBg}>
                 <Tr>
@@ -190,13 +222,27 @@ const BillingDashboard = () => {
               </Thead>
               <Tbody>
                 {paginatedData.map((doc) => (
-                  <Tr key={doc.BillingDocument} _hover={{ bg: hoverBg }}>
+                  <Tr
+                    key={doc.BillingDocument}
+                    _hover={{ bg: hoverBg, cursor: "pointer" }}
+                    onDoubleClick={() => handleRowDoubleClick(doc)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleRowDoubleClick(doc);
+                      }
+                    }}
+                    tabIndex={0}
+                  >
                     <Td>
                       <Checkbox
-                        isChecked={selectedDoc?.BillingDocument === doc.BillingDocument}
+                        isChecked={
+                          selectedDoc?.BillingDocument === doc.BillingDocument
+                        }
                         onChange={() =>
                           setSelectedDoc(
-                            selectedDoc?.BillingDocument === doc.BillingDocument ? null : doc
+                            selectedDoc?.BillingDocument === doc.BillingDocument
+                              ? null
+                              : doc
                           )
                         }
                       />
@@ -225,7 +271,9 @@ const BillingDashboard = () => {
                 Page {currentPage} of {totalPages}
               </Box>
               <Button
-                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                onClick={() =>
+                  setCurrentPage((p) => Math.min(p + 1, totalPages))
+                }
                 disabled={currentPage === totalPages}
               >
                 Next

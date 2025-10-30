@@ -590,7 +590,7 @@ const handleDownload = async () => {
                                 {index + 1}
                               </Td>
 
-                              <Td borderRight=" 1px" borderColor="black" p={2} textAlign="left"> {/* Aligned left */}
+                              <Td borderRight=" 1px" borderColor="black" p={2} textAlign="center"> {/* Aligned left */}
                                 <Text>{item.raw.Description || "-"}</Text>
                                 {item.batches.length > 0 &&
                                   item.batches.map((b, i) => (

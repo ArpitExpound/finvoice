@@ -5,7 +5,6 @@ const formatSAPDate = require("./utils/formatDate");
 const stateCodeMap = require("./utils/stateCodeMap");
 const { toWords } = require("./utils/numberToWords.js"); // adjust path if needed
 
-
 module.exports = async function () {
   const { billingDocument } = this.entities;
   const {
@@ -234,7 +233,26 @@ module.exports = async function () {
       (sum, pe) => sum + (pe.GrandTotal || 0),
       0
     );
-    const GrandTotalInWords = toWords(Math.floor(overallGrandTotal || 0)) + " Rupees Only"
+
+    const roundedTotal = Number(overallGrandTotal || 0).toFixed(2);
+
+    // Split into rupees and paise
+    const [rupeesPart, paisePart] = roundedTotal.split(".").map(Number);
+
+    // Convert rupees to words
+    let GrandTotalInWords = "";
+    if (rupeesPart > 0) {
+      GrandTotalInWords = toWords(rupeesPart) + " Rupees";
+    }
+
+    // Add paise part if present
+    if (paisePart > 0) {
+      GrandTotalInWords += " and " + toWords(paisePart) + " Paise";
+    }
+
+    // Add suffix
+    GrandTotalInWords += " Only";
+
     const overallIgst = PricingElements.reduce(
       (sum, pe) => sum + (pe.igstRate || 0),
       0
@@ -253,7 +271,24 @@ module.exports = async function () {
     );
 
     const overallGST = overalugst + overallcgst + overallsgst + overallIgst;
-    const GstInWords = toWords(Math.floor(overallGST || 0)) + " Rupees Only"
+    const roundedGST = Number(overallGST || 0).toFixed(2);
+
+    // Split into rupees and paise
+    const [gstRupees, gstPaise] = roundedGST.split(".").map(Number);
+
+    // Convert rupees to words
+    let GstInWords = "";
+    if (gstRupees > 0) {
+      GstInWords = toWords(gstRupees) + " Rupees";
+    }
+
+    // Add paise part if any
+    if (gstPaise > 0) {
+      GstInWords += " and " + toWords(gstPaise) + " Paise";
+    }
+
+    // Add suffix
+    GstInWords += " Only";
 
     console.log("== Aggregated Totals ==");
     console.log("Total Discount:", totalDiscount);
@@ -289,7 +324,7 @@ module.exports = async function () {
       overalTaxableAmount,
       overallGrandTotal,
       GrandTotalInWords,
-      GstInWords
+      GstInWords,
     };
   };
 
@@ -466,59 +501,59 @@ module.exports = async function () {
       };
     });
     // --- Fetch Plant Details ---
-const plantPromises = [...plantIds].map(async (id) => {
-  let plantData = {
-    Plant: null,
-    PlantName: null,
-    StreetName: null,
-    HouseNumber: null,
-    CityName: null,
-    PostalCode: null,
-    Region: null,
-    Country: null,
-    BusinessPlace: null,
-    subjectToJurisdiction: null,
-  };
-
-  if (id) {
-    try {
-      const auth = {
-        username: process.env.ABAP_USER,
-        password: process.env.ABAP_PASS,
+    const plantPromises = [...plantIds].map(async (id) => {
+      let plantData = {
+        Plant: null,
+        PlantName: null,
+        StreetName: null,
+        HouseNumber: null,
+        CityName: null,
+        PostalCode: null,
+        State: null,
+        Country: null,
+        BusinessPlace: null,
+        subjectToJurisdiction: null,
       };
 
-      const response = await axios.get(
-        `${ZI_PLANT1_API_URL}?$filter=Plant eq '${id}'&$format=json`,
-        { auth, headers: { "Content-Type": "application/json" } }
-      );
+      if (id) {
+        try {
+          const auth = {
+            username: process.env.ABAP_USER,
+            password: process.env.ABAP_PASS,
+          };
 
-      const records = response?.data?.value;
-      if (Array.isArray(records) && records.length > 0) {
-        const plant = records[0];
-        const regionName = stateCodeMap[plant.Region]?.name || plant.Region;
+          const response = await axios.get(
+            `${ZI_PLANT1_API_URL}?$filter=Plant eq '${id}'&$format=json`,
+            { auth, headers: { "Content-Type": "application/json" } }
+          );
 
-        plantData = {
-          Plant: plant.Plant || null,
-          PlantName: plant.PlantName || null,
-          StreetName: plant.StreetName || null,
-          HouseNumber: plant.HouseNumber || null,
-          CityName: plant.CityName || null,
-          PostalCode: plant.PostalCode || null,
-          Region: regionName || null,
-          Country: plant.Country || null,
-          BusinessPlace: plant.BusinessPlace || null,
-          subjectToJurisdiction: regionName
-            ? `SUBJECT TO ${regionName.toUpperCase()} JURISDICTION`
-            : null,
-        };
+          const records = response?.data?.value;
+          if (Array.isArray(records) && records.length > 0) {
+            const plant = records[0];
+            const regionName = stateCodeMap[plant.Region]?.name || plant.Region;
+
+            plantData = {
+              Plant: plant.Plant || null,
+              PlantName: plant.PlantName || null,
+              StreetName: plant.StreetName || null,
+              HouseNumber: plant.HouseNumber || null,
+              CityName: plant.CityName || null,
+              PostalCode: plant.PostalCode || null,
+              State: stateCodeMap[plant.Region],
+              Country: plant.Country || null,
+              BusinessPlace: plant.BusinessPlace || null,
+              subjectToJurisdiction: regionName
+                ? `SUBJECT TO ${regionName.toUpperCase()} JURISDICTION`
+                : null,
+            };
+          }
+        } catch (err) {
+          console.warn(`⚠️ Failed to fetch plant data for ${id}:`, err.message);
+        }
       }
-    } catch (err) {
-      console.warn(`⚠️ Failed to fetch plant data for ${id}:`, err.message);
-    }
-  }
 
-  return plantData;
-});
+      return plantData;
+    });
 
     // --- Fetch Delivery Headers ---
     const headerPromises = [...deliveryDocIds].map((id) =>
@@ -669,8 +704,6 @@ const plantPromises = [...plantIds].map(async (id) => {
       "Triplicate for Supplier",
       "Extra Copy", // aka Accounts Copy / Extra Copy (internal)
     ];
-
-
 
     let seller = {
       name: "MERIT POLYMERS PRIVATE LIMITED",

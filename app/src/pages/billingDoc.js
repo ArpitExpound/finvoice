@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useTheme } from "../theme/ThemeProviderWrapper";
-
 import {
   Box,
   Heading,
@@ -15,15 +14,27 @@ import {
   Center,
   HStack,
   Button,
+  Badge,
   Checkbox,
   IconButton,
   Input,
   useToast,
   useColorModeValue,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
 } from "@chakra-ui/react";
-
-import { MoonIcon, SunIcon, ViewIcon, DownloadIcon } from "@chakra-ui/icons";
+import {
+  MoonIcon,
+  SunIcon,
+  ViewIcon,
+  DownloadIcon,
+  ChevronDownIcon,
+} from "@chakra-ui/icons";
 import InvoiceModal from "../component/taxInvoice";
+import DNHFormat from "../component/DNHFormat";
+import NewFormat from "../component/newFormat";
 
 const API_BASE_URL = "http://localhost:4004/api/v1";
 const ITEMS_PER_PAGE = 10;
@@ -36,17 +47,20 @@ const BillingDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedModal, setSelectedModal] = useState("Tax Invoice");
   const toast = useToast();
 
   const { colorMode, toggleColorMode } = useTheme();
 
-  // Color mode adaptive values
+  // ✅ Theme colors
   const bgColor = useColorModeValue("gray.50", "gray.800");
   const tableBg = useColorModeValue("white", "gray.700");
   const tableHeaderBg = useColorModeValue("blue.100", "blue.900");
   const hoverBg = useColorModeValue("gray.100", "gray.600");
   const headingColor = useColorModeValue("blue.700", "blue.200");
+  const selectedRowBg = useColorModeValue("blue.50", "blue.900");
 
+  // ✅ Fetch billing documents
   useEffect(() => {
     const fetchBillingDocuments = async () => {
       try {
@@ -69,7 +83,7 @@ const BillingDashboard = () => {
     fetchBillingDocuments();
   }, [toast]);
 
-  // Filter documents whenever searchTerm changes
+  // ✅ Filter documents when search term changes
   useEffect(() => {
     if (searchTerm.trim() === "") {
       setFilteredDocs(billingDocuments);
@@ -78,7 +92,7 @@ const BillingDashboard = () => {
         doc.BillingDocument.toString().includes(searchTerm.trim())
       );
       setFilteredDocs(filtered);
-      setCurrentPage(1); // Reset to first page
+      setCurrentPage(1);
     }
   }, [searchTerm, billingDocuments]);
 
@@ -131,7 +145,6 @@ const BillingDashboard = () => {
           Billing Document List
         </Heading>
         <HStack spacing={3}>
-          {/* Theme toggle button */}
           <IconButton
             icon={colorMode === "light" ? <MoonIcon /> : <SunIcon />}
             onClick={toggleColorMode}
@@ -139,7 +152,55 @@ const BillingDashboard = () => {
             colorScheme="teal"
             aria-label="Toggle Theme"
           />
-          {/* View and Download buttons */}
+        </HStack>
+      </HStack>
+
+      {/* ✅ Search Input + Dropdown Button */}
+      <HStack mb={4} justify="space-between">
+        <Input
+          placeholder="Search by BillingDocument"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          fontSize="sm"
+          height="30px"
+          width="25%"
+        />
+
+        {/* ✅ Dropdown Button for selecting component */}
+        <Menu>
+          <MenuButton
+            as={Button}
+            rightIcon={<ChevronDownIcon />}
+            colorScheme="blue"
+            size="sm"
+          >
+            {selectedModal}
+          </MenuButton>
+          <MenuList>
+            <MenuItem onClick={() => setSelectedModal("Tax Invoice")}>
+              Tax Invoice
+            </MenuItem>
+            <MenuItem onClick={() => setSelectedModal("DNH Format")}>
+              DNH Format
+            </MenuItem>
+            <MenuItem onClick={() => setSelectedModal("New Format")}>
+              New Format
+            </MenuItem>
+          </MenuList>
+        </Menu>
+      </HStack>
+
+      {/* ✅ Show selected Billing Document */}
+        <HStack mb={4}>
+          <Badge colorScheme="blue" fontSize="md">
+            Selected Billing Document:{" "}
+            {String(
+              selectedDoc?.BillingDocument?.billingDocumentID ||
+                selectedDoc?.BillingDocument ||
+                selectedDoc?.billingDocumentID ||
+                "N/A"
+            )}
+          </Badge>
           <IconButton
             icon={<ViewIcon />}
             colorScheme="blue"
@@ -153,19 +214,6 @@ const BillingDashboard = () => {
             onClick={handlePreview}
           />
         </HStack>
-      </HStack>
-
-      {/* Search Input */}
-      <Box mb={2}>
-        <Input
-          placeholder="Search by BillingDocument"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          fontSize="sm"
-          height="30px"
-          width="50%" // optional, adjust as needed
-        />
-      </Box>
 
       {/* Table */}
       <Box p={4} bg={tableBg} borderRadius="md" boxShadow="lg" overflowX="auto">
@@ -188,28 +236,59 @@ const BillingDashboard = () => {
                   <Th>Division</Th>
                 </Tr>
               </Thead>
+
               <Tbody>
-                {paginatedData.map((doc) => (
-                  <Tr key={doc.BillingDocument} _hover={{ bg: hoverBg }}>
-                    <Td>
-                      <Checkbox
-                        isChecked={selectedDoc?.BillingDocument === doc.BillingDocument}
-                        onChange={() =>
-                          setSelectedDoc(
-                            selectedDoc?.BillingDocument === doc.BillingDocument ? null : doc
-                          )
+                {paginatedData.map((doc) => {
+                  const isSelected =
+                    selectedDoc?.BillingDocument === doc.BillingDocument;
+                  return (
+                    <Tr
+                      key={doc.BillingDocument}
+                      _hover={{ bg: hoverBg, cursor: "pointer" }}
+                      bg={isSelected ? selectedRowBg : "transparent"}
+                      onClick={() => setSelectedDoc(isSelected ? null : doc)}
+                      onDoubleClick={async () => {
+                        setSelectedDoc(doc);
+                        const detailedDoc = await fetchDocumentDetails(
+                          doc.BillingDocument
+                        );
+                        if (detailedDoc) {
+                          setSelectedDoc(detailedDoc);
+                          setIsModalOpen(true);
                         }
-                      />
-                    </Td>
-                    <Td>{doc.BillingDocument}</Td>
-                    <Td>{doc.BillingDocumentDate}</Td>
-                    <Td>{doc.BillingDocumentType}</Td>
-                    <Td>{doc.CompanyCode}</Td>
-                    <Td>{doc.FiscalYear}</Td>
-                    <Td>{doc.salesOrganization}</Td>
-                    <Td>{doc.Division}</Td>
-                  </Tr>
-                ))}
+                      }}
+                      tabIndex={0}
+                      onKeyDown={async (e) => {
+                        if (e.key === "Enter" && isSelected) {
+                          const detailedDoc = await fetchDocumentDetails(
+                            doc.BillingDocument
+                          );
+                          if (detailedDoc) {
+                            setSelectedDoc(detailedDoc);
+                            setIsModalOpen(true);
+                          }
+                        }
+                      }}
+                    >
+                      <Td onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          isChecked={isSelected}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            setSelectedDoc(isSelected ? null : doc);
+                          }}
+                        />
+                      </Td>
+                      <Td>{doc.BillingDocument}</Td>
+                      <Td>{doc.BillingDocumentDate}</Td>
+                      <Td>{doc.BillingDocumentType}</Td>
+                      <Td>{doc.CompanyCode}</Td>
+                      <Td>{doc.FiscalYear}</Td>
+                      <Td>{doc.salesOrganization}</Td>
+                      <Td>{doc.Division}</Td>
+                    </Tr>
+                  );
+                })}
               </Tbody>
             </Table>
 
@@ -225,7 +304,9 @@ const BillingDashboard = () => {
                 Page {currentPage} of {totalPages}
               </Box>
               <Button
-                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                onClick={() =>
+                  setCurrentPage((p) => Math.min(p + 1, totalPages))
+                }
                 disabled={currentPage === totalPages}
               >
                 Next
@@ -235,12 +316,39 @@ const BillingDashboard = () => {
         )}
       </Box>
 
-      {/* Modal */}
-      <InvoiceModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        selectedDoc={selectedDoc}
-      />
+      {/* ✅ Conditional Modals */}
+      {selectedModal === "Tax Invoice" && (
+        <InvoiceModal
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedDoc(null);
+          }}
+          selectedDoc={selectedDoc}
+        />
+      )}
+
+      {selectedModal === "DNH Format" && (
+        <DNHFormat
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedDoc(null);
+          }}
+          selectedDoc={selectedDoc}
+        />
+      )}
+
+      {selectedModal === "New Format" && (
+        <NewFormat
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedDoc(null);
+          }}
+          selectedDoc={selectedDoc}
+        />
+      )}
     </Box>
   );
 };
